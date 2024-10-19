@@ -1,208 +1,90 @@
 ﻿using System;
 using System.Collections.Generic;
-public interface ICommand
+public interface IMediator
 {
-    void Execute();
-    void Undo();
-}
-public class Light
-{
-    public void On() => Console.WriteLine("Свет включен.");
-    public void Off() => Console.WriteLine("Свет выключен.");
-}
-public class LightOnCommand : ICommand
-{
-    private Light light;
-
-    public LightOnCommand(Light light)
-    {
-        this.light = light;
-    }
-
-    public void Execute() => light.On();
-    public void Undo() => light.Off();
-}
-public class LightOffCommand : ICommand
-{
-    private Light light;
-
-    public LightOffCommand(Light light)
-    {
-        this.light = light;
-    }
-
-    public void Execute() => light.Off();
-    public void Undo() => light.On();
+    void SendMessage(string message, User sender);
+    void AddUser(User user);
+    void RemoveUser(User user);
 }
 
-public class AirConditioner
+public class ChatRoom : IMediator
 {
-    public void On() => Console.WriteLine("Кондиционер включен.");
-    public void Off() => Console.WriteLine("Кондиционер выключен.");
-}
+    private readonly List<User> _users = new List<User>();
 
-public class AirConditionerOnCommand : ICommand
-{
-    private AirConditioner ac;
-
-    public AirConditionerOnCommand(AirConditioner ac)
+    public void SendMessage(string message, User sender)
     {
-        this.ac = ac;
-    }
-
-    public void Execute() => ac.On();
-    public void Undo() => ac.Off();
-}
-
-public class AirConditionerOffCommand : ICommand
-{
-    private AirConditioner ac;
-
-    public AirConditionerOffCommand(AirConditioner ac)
-    {
-        this.ac = ac;
-    }
-
-    public void Execute() => ac.Off();
-    public void Undo() => ac.On();
-}
-
-public class Television
-{
-    public void On() => Console.WriteLine("Телевизор включен.");
-    public void Off() => Console.WriteLine("Телевизор выключен.");
-}
-public class TVOnCommand : ICommand
-{
-    private Television tv;
-
-    public TVOnCommand(Television tv)
-    {
-        this.tv = tv;
-    }
-
-    public void Execute() => tv.On();
-    public void Undo() => tv.Off();
-}
-public class TVOffCommand : ICommand
-{
-    private Television tv;
-
-    public TVOffCommand(Television tv)
-    {
-        this.tv = tv;
-    }
-
-    public void Execute() => tv.Off();
-    public void Undo() => tv.On();
-}
-
-public class RemoteControl
-{
-    private ICommand[] onCommands;
-    private ICommand[] offCommands;
-    private Stack<ICommand> commandHistory;
-
-    public RemoteControl(int buttonCount)
-    {
-        onCommands = new ICommand[buttonCount];
-        offCommands = new ICommand[buttonCount];
-        commandHistory = new Stack<ICommand>();
-    }
-
-    public void SetCommand(int slot, ICommand onCommand, ICommand offCommand)
-    {
-        onCommands[slot] = onCommand;
-        offCommands[slot] = offCommand;
-    }
-
-    public void OnButtonPressed(int slot)
-    {
-        onCommands[slot]?.Execute();
-        commandHistory.Push(onCommands[slot]);
-    }
-
-    public void OffButtonPressed(int slot)
-    {
-        offCommands[slot]?.Execute();
-        commandHistory.Push(offCommands[slot]);
-    }
-
-    public void Undo()
-    {
-        if (commandHistory.Count > 0)
+        foreach (var user in _users)
         {
-            ICommand lastCommand = commandHistory.Pop();
-            lastCommand.Undo();
-        }
-        else
-        {
-            Console.WriteLine("Нет команд для отмены.");
-        }
-    }
-}
-
-public class MacroCommand : ICommand
-{
-    private List<ICommand> commands;
-
-    public MacroCommand(List<ICommand> commands)
-    {
-        this.commands = commands;
-    }
-
-    public void Execute()
-    {
-        foreach (var command in commands)
-        {
-            command.Execute();
+            if (user != sender)
+            {
+                user.ReceiveMessage(message, sender.Name);
+            }
         }
     }
 
-    public void Undo()
+    public void AddUser(User user)
     {
-        foreach (var command in commands)
-        {
-            command.Undo();
-        }
+        _users.Add(user);
+        Console.WriteLine($"{user.Name} присоединился к чату.");
+    }
+
+    public void RemoveUser(User user)
+    {
+        _users.Remove(user);
+        Console.WriteLine($"{user.Name} покинул чат.");
     }
 }
 
-internal class Program
+public class User
 {
-    static void Main(string[] args)
+    public string Name { get; }
+    private IMediator _mediator;
+
+    public User(string name, IMediator mediator)
     {
-        Light light = new Light();
-        AirConditioner ac = new AirConditioner();
-        Television tv = new Television();
+        Name = name;
+        _mediator = mediator;
+    }
 
-        LightOnCommand lightOn = new LightOnCommand(light);
-        LightOffCommand lightOff = new LightOffCommand(light);
-        AirConditionerOnCommand acOn = new AirConditionerOnCommand(ac);
-        AirConditionerOffCommand acOff = new AirConditionerOffCommand(ac);
-        TVOnCommand tvOn = new TVOnCommand(tv);
-        TVOffCommand tvOff = new TVOffCommand(tv);
+    public void SendMessage(string message)
+    {
+        if (_mediator == null)
+        {
+            Console.WriteLine($"{Name} не может отправить сообщение. Он не в чате.");
+            return;
+        }
 
-        RemoteControl remote = new RemoteControl(3);
-        remote.SetCommand(0, lightOn, lightOff);
-        remote.SetCommand(1, acOn, acOff);
-        remote.SetCommand(2, tvOn, tvOff);
+        Console.WriteLine($"{Name} отправил: {message}");
+        _mediator.SendMessage(message, this);
+    }
 
-        remote.OnButtonPressed(0); 
-        remote.OnButtonPressed(1); 
-        remote.OnButtonPressed(2); 
+    public void ReceiveMessage(string message, string senderName)
+    {
+        Console.WriteLine($"[{Name} получил от {senderName}]: {message}");
+    }
+}
 
-        Console.WriteLine();
+public class Program
+{
+    public static void Main(string[] args)
+    {
+        var chatRoom = new ChatRoom();
 
-        remote.Undo(); 
-        remote.Undo(); 
+        var user1 = new User("Лидия", chatRoom);
+        var user2 = new User("Мария", chatRoom);
+        var user3 = new User("Алиса", chatRoom);
 
-        List<ICommand> macroCommands = new List<ICommand> { lightOn, acOn, tvOn };
-        MacroCommand macro = new MacroCommand(macroCommands);
-        macro.Execute(); 
+        chatRoom.AddUser(user1);
+        chatRoom.AddUser(user2);
+        chatRoom.AddUser(user3);
 
-        Console.WriteLine();
+        user1.SendMessage("Привет всем!");
+        user2.SendMessage("Здравствуйте, Лидия!");
+        user3.SendMessage("Как дела?");
 
-        macro.Undo(); 
+        chatRoom.RemoveUser(user2);
+
+        user1.SendMessage("Где Мария?");
+        user3.SendMessage("Я не знаю, она покинула чат.");
     }
 }
